@@ -1,4 +1,3 @@
-import { kidAge } from "@/lib/format";
 import "server-only";
 import crypto from "node:crypto";
 import { cache } from "react";
@@ -57,7 +56,8 @@ async function requestMeta() {
   const h = await headers();
   return {
     userAgent: h.get("user-agent")?.slice(0, 300) ?? null,
-    ip: h.get("x-real-ip") ?? h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? null,
+    // x-real-ip is set by our reverse proxy. The left-most X-Forwarded-For entry is client-controlled, so it is not used.
+    ip: h.get("x-real-ip") ?? null,
   };
 }
 

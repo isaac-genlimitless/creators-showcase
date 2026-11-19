@@ -28,7 +28,8 @@ Cross-branch helpers stay inside the owning feature folder. Shared changes are k
 - **Ages, never grades**: students and schools are described by AGE. Legacy grade columns remain unused.
 - `User.roles: Role[]` — one account can be `PARENT` + `FACILITATOR`; `ADMIN` is only set by seed/DB.
 - `Location.exactAddress` is private — only shown to ACCEPTED/ACTIVE families and admins. Public fields are `approxArea` + `city`.
-- `Payment` is unique per `(enrollmentId, periodStart)` for idempotent billing.
+- `Payment` is unique per `(enrollmentId, periodStart)` for idempotent billing, and is never cascade-deleted (`onDelete: Restrict`).
+- `Enrollment` is unique per `(kidId, schoolId)`.
 - **COPPA**: `Kid` has no email, phone, photo or location — never add them.
 - Messaging: a thread that includes a kid must also include that kid’s facilitator.
 
@@ -65,7 +66,7 @@ hashPassword / verifyPassword / hashPin / verifyPin
 
 Feature code calls the adapter; it never imports a provider SDK directly. When real keys are absent, a full test implementation is used.
 
-- **payments**: Stripe Connect-shaped. Test mode succeeds unless forced to fail or a decline test card is used.
+- **payments**: Stripe Connect-shaped. Test mode succeeds unless forced to fail or a decline test card is used. In production a missing key is an error, never a silent fall-back to test mode.
 - **backgroundCheck**, **email**, **geo**, **storage**: similarly stubbed for development.
 
 Fees live in `@/lib/fees`: `PLATFORM_FEE_BPS = 1500` (15%), `platformFee(amountCents)`, `facilitatorNet`, `applyDiscount`.

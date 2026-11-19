@@ -47,6 +47,12 @@ enum EnrollmentStatus {
   WITHDRAWN
 }
 
+enum SchoolStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
 enum PaymentStatus {
   PENDING
   SUCCEEDED
@@ -56,34 +62,35 @@ enum PaymentStatus {
 }
 
 model User {
-  id              String    @id @default(cuid())
-  email           String    @unique
-  name            String
-  passwordHash    String?
-  roles           Role[]    @default([])
-  suspended       Boolean   @default(false)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String?
+  roles        Role[]   @default([])
+  suspended    Boolean  @default(false)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  kids                 Kid[]
-  facilitatorProfile   FacilitatorProfile?
-  sessions             UserSession[]
+  kids               Kid[]
+  facilitatorProfile FacilitatorProfile?
+  sessions           UserSession[]
 
   @@index([suspended])
 }
 
 model Kid {
-  id                String    @id @default(cuid())
-  parentId          String
-  firstName         String
-  birthYear         Int
-  username          String    @unique
-  pinHash           String
-  active            Boolean   @default(true)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id        String   @id @default(cuid())
+  parentId  String
+  firstName String
+  birthYear Int
+  username  String   @unique
+  pinHash   String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  parent User @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  parent      User         @relation(fields: [parentId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
 
   @@index([parentId])
 }
@@ -103,34 +110,34 @@ model UserSession {
 }
 
 model FacilitatorProfile {
-  id                       String                @id @default(cuid())
-  userId                   String                @unique
-  bio                      String?
-  backgroundCheckStatus    BackgroundCheckStatus @default(NOT_STARTED)
-  approvalStatus           ApprovalStatus        @default(APPLIED)
-  stripeAccountId          String?               @unique
-  payoutsReady             Boolean               @default(false)
-  createdAt                DateTime              @default(now())
-  updatedAt                DateTime              @updatedAt
+  id                    String                @id @default(cuid())
+  userId                String                @unique
+  bio                   String?
+  backgroundCheckStatus BackgroundCheckStatus @default(NOT_STARTED)
+  approvalStatus        ApprovalStatus        @default(APPLIED)
+  stripeAccountId       String?               @unique
+  payoutsReady          Boolean               @default(false)
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
 
   user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   schools School[]
 }
 
 model School {
-  id                 String        @id @default(cuid())
-  facilitatorId      String
-  slug               String        @unique
-  name               String
-  description        String
-  format             SchoolFormat
-  capacity           Int
-  tuitionCents       Int
-  status             String        @default("DRAFT")
-  agesMin            Int           @default(5)
-  agesMax            Int           @default(18)
-  createdAt          DateTime      @default(now())
-  updatedAt          DateTime      @updatedAt
+  id            String       @id @default(cuid())
+  facilitatorId String
+  slug          String       @unique
+  name          String
+  description   String
+  format        SchoolFormat
+  capacity      Int
+  tuitionCents  Int
+  status        SchoolStatus @default(DRAFT)
+  agesMin       Int          @default(5)
+  agesMax       Int          @default(18)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
 
   facilitator FacilitatorProfile @relation(fields: [facilitatorId], references: [id], onDelete: Cascade)
   enrollments Enrollment[]
@@ -139,20 +146,20 @@ model School {
 }
 
 model Enrollment {
-  id            String           @id @default(cuid())
-  kidId         String
-  schoolId      String
-  status        EnrollmentStatus @default(REQUESTED)
-  tuitionCents  Int?
-  discountPct   Int              @default(0)
-  createdAt     DateTime         @default(now())
-  updatedAt     DateTime         @updatedAt
+  id           String           @id @default(cuid())
+  kidId        String
+  schoolId     String
+  status       EnrollmentStatus @default(REQUESTED)
+  tuitionCents Int?
+  discountPct  Int              @default(0)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
 
-  kid      Kid      @relation(fields: [kidId], references: [id], onDelete: Cascade)
-  school   School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  kid      Kid       @relation(fields: [kidId], references: [id], onDelete: Cascade)
+  school   School    @relation(fields: [schoolId], references: [id], onDelete: Cascade)
   payments Payment[]
 
-  @@index([kidId])
+  @@unique([kidId, schoolId])
   @@index([schoolId, status])
 }
 
@@ -168,7 +175,8 @@ model Payment {
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  // Restrict, not Cascade: payment history is a financial record and must survive account or enrollment clean-up.
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Restrict)
 
   @@unique([enrollmentId, periodStart])
   @@index([status])
