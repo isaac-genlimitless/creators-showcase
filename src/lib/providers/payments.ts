@@ -72,7 +72,8 @@ class TestPaymentsProvider implements PaymentsProvider {
   }
   async charge(input: ChargeInput): Promise<ChargeResult> {
     if (!Number.isInteger(input.amountCents) || input.amountCents <= 0) throw new Error("amountCents must be a positive integer");
-    if (input.applicationFeeCents < 0 || input.applicationFeeCents > input.amountCents) throw new Error("bad applicationFeeCents");
+    if (!Number.isInteger(input.applicationFeeCents) || input.applicationFeeCents < 0 || input.applicationFeeCents > input.amountCents)
+      throw new Error("applicationFeeCents must be an integer between 0 and amountCents");
     const fail =
       input.forceFail || process.env.TEST_PAYMENTS_FAIL === "1" || (input.paymentMethod && DECLINES.has(input.paymentMethod));
     if (fail) {
@@ -88,6 +89,7 @@ class TestPaymentsProvider implements PaymentsProvider {
     return { status: "succeeded", chargeId: rid("ch"), provider: this.name };
   }
   async refund({ amountCents }: { chargeId: string; amountCents: number }): Promise<RefundResult> {
+    if (!Number.isInteger(amountCents) || amountCents <= 0) throw new Error("amountCents must be a positive integer");
     return { status: "succeeded", refundId: rid("re"), amountCents, provider: this.name };
   }
 }
@@ -105,8 +107,20 @@ class StripePaymentsProvider implements PaymentsProvider {
   refund(): Promise<RefundResult> { return this.notYet(); }
 }
 
+/**
+ * Picks the provider. Fails closed: in production a missing STRIPE_SECRET_KEY is a configuration error, not a
+ * reason to fall back to the test adapter (which approves every charge). ALLOW_TEST_PAYMENTS=1 is the explicit
+ * opt-in for a production-mode staging/demo deploy.
+ */
+export function selectPaymentsProvider(env: NodeJS.ProcessEnv = process.env): PaymentsProvider {
+  if (env.STRIPE_SECRET_KEY) return new StripePaymentsProvider();
+  if (env.NODE_ENV === "production" && env.ALLOW_TEST_PAYMENTS !== "1")
+    throw new Error("STRIPE_SECRET_KEY is not set in production. Refusing to use the test payments adapter (set ALLOW_TEST_PAYMENTS=1 only for a demo deploy).");
+  return new TestPaymentsProvider();
+}
+
 let instance: PaymentsProvider | null = null;
 export function payments(): PaymentsProvider {
-  instance ??= process.env.STRIPE_SECRET_KEY ? new StripePaymentsProvider() : new TestPaymentsProvider();
+  instance ??= selectPaymentsProvider();
   return instance;
 }

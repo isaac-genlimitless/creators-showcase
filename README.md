@@ -29,23 +29,34 @@ This is a **sanitized public showcase**. Server-specific paths, production hostn
 | Conventions & multi-branch workflow | `CONVENTIONS.md` | Clear ownership rules, schema discipline, auth helpers, provider pattern |
 | Data model | `prisma/schema.prisma` | Money in integer cents, age-based (not grades), COPPA constraints, enrollment/payment uniqueness |
 | Auth | `src/lib/auth.ts` | Custom sessions, role checks, admin view-as, kid sessions |
-| Payments adapter | `src/lib/providers/payments.ts` + `src/lib/fees.ts` | Interface + full test implementation, 15% platform fee |
-| Docker | `Dockerfile` | Multi-stage standalone build with Prisma migrate on start |
+| Payments adapter | `src/lib/providers/payments.ts` + `src/lib/fees.ts` | Interface + full test implementation that fails closed in production, 15% platform fee (tested in `test/`) |
+| Docker | `Dockerfile`, `docker/entrypoint.sh` | Multi-stage standalone build; migrations run with a pinned Prisma CLI on start |
 
-## Running locally
+## What's in this excerpt (and what isn't)
 
-Requires Node 20+ and a PostgreSQL database.
+This repo is a **code excerpt**, not a runnable app. It holds the files listed above. The pages (`src/app`), the
+remaining `src/lib` helpers (`db`, `format`, billing), the seed script, the migrations and most of the auth module
+(view-as, kid sessions) are not included, so `npm run dev` and `docker build` will not work here. The `Dockerfile`
+is the production one, shown for reference.
+
+What you can run:
 
 ```bash
-cp .env.example .env.local
-# Edit DATABASE_URL and any other values
-npm install
-npm run db:migrate   # or db:deploy
-npm run db:seed      # optional demo data
-npm run dev
+npm ci
+npm test              # fee math and the payments adapter (node:test, Node 22.18+)
+npx prisma validate   # the schema excerpt is a valid Prisma schema (needs any DATABASE_URL value)
 ```
 
-See `.env.example` for configuration. Integrations without credentials stay in test mode.
+CI runs the same checks on every push and pull request.
+
+### Safety defaults worth noting
+
+- **Payments fail closed.** In production, a missing `STRIPE_SECRET_KEY` stops the app instead of quietly
+  switching to the test adapter (which approves every charge). `ALLOW_TEST_PAYMENTS=1` is the explicit opt-in for a demo deploy.
+- **Payment history is never cascade-deleted.** `Payment` uses `onDelete: Restrict`, so removing an account or
+  enrollment cannot erase financial records.
+- **One enrollment per kid per school**, enforced by a unique index.
+- **Migrations use the Prisma CLI pinned in the image**, never a runtime `npx` download.
 
 ## Notes
 
